@@ -10,30 +10,25 @@
 //
 'use strict';
 
-
-
 //
 // MARK: - default values
 //
 const autoHeaderOptions = {
-	separator:	'',
-	custom:		'',
-	levels:		'',
-	scope:		'',
-	debug:		false
+	separator: 'decimal',
+	custom: '.',
+	levels: 6,
+	scope: '#main',
+	debug: false
 }
-
-
 
 //
 // MARK: - get the index.html options
 //
-function getAutoHeadersOptions( autoHeaderOptions ) {
-
+function getAutoHeadersOptions(autoHeaderOptions) {
 	// check for empty config
-	if(
-		!autoHeaderOptions.separator	||
-		!autoHeaderOptions.levels		||
+	if (
+		!autoHeaderOptions.separator ||
+		!autoHeaderOptions.levels ||
 		!autoHeaderOptions.scope
 	) {
 		return console.error(
@@ -50,24 +45,19 @@ function getAutoHeadersOptions( autoHeaderOptions ) {
 	);
 
 	// output the correct from words
-	switch( autoHeaderOptions.separator ) {
-
-		case 'decimal'	:
+	switch (autoHeaderOptions.separator) {
+		case 'decimal':
 			separator = '.';
 			break;
-
-		case 'dash'		:
+		case 'dash':
 			separator = '-';
 			break;
-
-		case 'bracket'	:
+		case 'bracket':
 			separator = ')';
 			break;
-
-		case 'other'	:
+		case 'other':
 			separator = separator;
 			break;
-
 		default:
 			return;
 	}
@@ -77,10 +67,27 @@ function getAutoHeadersOptions( autoHeaderOptions ) {
 		autoHeaderOptions.levels ?
 			autoHeaderOptions.levels : 6
 	);
+	if (typeof levels === "string") {
+		levels = parseInt(levels)
+	}
+	if (typeof levels === "number") {
+		levels = {
+			start: 1,
+			finish: levels
+		}
+	}
+	else if (typeof levels === "object") {
+		if (typeof levels.start === "string") {
+			levels.start = parseInt(levels.start)
+		}
+		if (typeof levels.finish === "string") {
+			levels.finish = parseInt(levels.finish)
+		}
+	}
 
 	let scope = (
 		autoHeaderOptions.scope ?
-			autoHeaderOptions.scope : "main"
+			autoHeaderOptions.scope : "#main"
 	);
 
 	let debug = (
@@ -97,17 +104,15 @@ function getAutoHeadersOptions( autoHeaderOptions ) {
 	];
 }
 
-
-
 //
 // MARK: - main function
 //
-function autoHeaders( hook, vm ) {
+function autoHeaders(hook, vm) {
 
 	//
 	// MARK: - safety
 	//
-	if( getAutoHeadersOptions( autoHeaderOptions ) === undefined ) {
+	if (getAutoHeadersOptions(autoHeaderOptions) === undefined) {
 		return;
 	}
 
@@ -115,320 +120,238 @@ function autoHeaders( hook, vm ) {
 	//
 	// MARK: - variables
 	//
-
 	let getHeadingNumber = null;
 
 	// get the options variables
-	const getAutoHeadersOptionsArray = getAutoHeadersOptions(
-		autoHeaderOptions
-	),
+	const getAutoHeadersOptionsArray = getAutoHeadersOptions(autoHeaderOptions),
+		optionsSeparator = getAutoHeadersOptionsArray[0],
+		optionsLevel = getAutoHeadersOptionsArray[1],
+		optionsScope = getAutoHeadersOptionsArray[2],
+		optionsDebug = getAutoHeadersOptionsArray[3],
 
-	// create new variables
-	optionsSeparator = getAutoHeadersOptionsArray[ 0 ],
-	optionsLevel     = getAutoHeadersOptionsArray[ 1 ],
-	optionsScope     = getAutoHeadersOptionsArray[ 2 ],
-	optionsDebug     = getAutoHeadersOptionsArray[ 3 ],
-
-	// get the heading range from options
-	setHeadingRange = ( headingInputValue ) => {
-
-		// variables
-		let output = '';
-
-		// 1. check if is a string
-		if(
-			typeof optionsLevel === 'string'
-		) {
-
-			// set it as H1 to
-			output = `H1-${ headingInputValue }`;
-
-		// 2. check if is object and not null
-		} else if(
-			typeof optionsLevel === 'object' &&
-			optionsLevel !== null
-		) {
-
+		// get the heading range from options
+		setHeadingRange = (headingInputValue) => {
+			// the headingInputValue is an object with 'start' and 'finish' number fields.
 			// error catching
-
 			// -- start has to be less than finish
-			if( headingInputValue.start > headingInputValue.finish ) {
-				return console.log( 'ERROR: heading start level cannot be greater than finish level' );
+			if (headingInputValue.start > headingInputValue.finish) {
+				return console.error('ERROR: heading start level cannot be greater than finish level');
 			}
 
 			// -- start and finish need to be between 1-6 incl.
-			if(
-				( headingInputValue.start  < 1 ) ||
-				( headingInputValue.start  > 6 ) ||
-				( headingInputValue.finish < 1 ) ||
-				( headingInputValue.finish > 6 )
-			) {
-				return console.log( 'ERROR: heading levels need to be between 1-6' );
+			if ((headingInputValue.start < 1) || (headingInputValue.finish > 6)) {
+				return console.error('ERROR: heading levels need to be between 1-6');
 			}
 
-			// set the range
-			output = `H${ headingInputValue.start }-${ headingInputValue.finish }`;
-		}
+			// set the range (literal as 'Hm-n')
+			let output = `${headingInputValue.start}-${headingInputValue.finish}`;
+			return output;
+		},
 
-		return output;
-	},
-
-	// save as constant
-	optionsLevelRange = setHeadingRange( optionsLevel );
-
+		// save as constant
+		optionsLevelRange = setHeadingRange(optionsLevel);
 
 	//
 	// MARK: - check if the document starts with the signifier
 	//
 
-	// get the `@autoHeader:` data
-	hook.beforeEach( function( content ) {
-
-		// get the first 12 characters
-		const getFirstCharacters = content.slice( 0, 12 );
-
-		// check if beginning with the plugin key
-		if( getFirstCharacters === "@autoHeader:" ) {
-
-			// get the first line of data
-			const getFirstLine = content.split( "\n" )[0];
-
-			// get everything after the `:`
-			getHeadingNumber = getFirstLine.split( ":" )[1];
-
-			// there is no data to continue
-			if(
-				!getHeadingNumber			||
-				getHeadingNumber == null	||
-				getHeadingNumber == ''
-			) {
-
-				// set the headerNumber to null
-				getHeadingNumber = null;
-
-			// transform the data
-			} else {
-
-				// make an array from the separator
-				getHeadingNumber = getHeadingNumber.split( optionsSeparator );
-
-				// dont work with too many items in the array
-				if( getHeadingNumber.length > 6 ) {
-
-					// set the headerNumber to null
-					getHeadingNumber = null;
-
-				} else {
-
-					// pad in the extra array items
-					getHeadingNumber = getHeadingNumber.concat(
-						new Array( 6 )		// add a new array upto 6 items
-						.fill( 0 )			// fill it with zeros
-					)
-					.slice( 0, 6 )			// cut off after 6 items
-					.map( x => +x );		// map the Strings to Int
-				}
+	// get the heading number settings in `@autoHeader:` or `<!-- autoHeader: -->`.
+	hook.beforeEach(function (content) {
+		// check if beginning with the plugin key        
+		let separator = optionsSeparator;
+		if (optionsSeparator === '.' || optionsSeparator === ')') {
+			separator = '\\' + optionsSeparator;
+		}
+		const commentRegex = new RegExp(
+			'<!--\\s*autoHeader\\s*:\\s*(([\\w\\d]*' + separator + '?)+)\\s*-->');
+		getHeadingNumber = null;
+		for (const line of content.split("\n")) {
+			if (!line.startsWith("<!--")) {
+				break
 			}
+			let match = line.trim().match(commentRegex)
+			if (match === null) { // skip not matched comment elements
+				continue
+			}
+			console.debug(match[1])
+			if (match[1] === "off") {
+				getHeadingNumber = null
+				return
+			}
+			// if not match, match[1] is "" (empty string)
+			if (match[1] !== "") {
+				getHeadingNumber = match[1]
+			}
+		}
 
-			// remove the line
-			var cleanedContent = content.replace( getFirstLine, '' );
+		if (getHeadingNumber === null && content.startsWith("@autoHeader:")) {
+			// get the first line of data
+			const getFirstLine = content.split("\n")[0];
+			// get everything after the `:`
+			// if not match, getHeadingNumber is undefined (!getHeadingNumber is true)
+			getHeadingNumber = getFirstLine.split(":")[1];
+			if (!getHeadingNumber || getHeadingNumber === '') {
+				getHeadingNumber = null
+			}
+			else {
+				getHeadingNumber = getHeadingNumber.trim()
+			}
+			// remove the line containing "@autoHeader" mark.
+			var cleanedContent = content.replace(getFirstLine, '');
+		}
 
-			// return the cleaned content
-			return cleanedContent;
+		// there is no data to continue
+		if (getHeadingNumber !== null) {
+			// make an array from the separator
+			// map the Strings to Int
+			getHeadingNumber = getHeadingNumber.split(optionsSeparator)
+				.map(x => parseInt(x));
 
-		} else {
-
-			// set the headerNumber to null
-			getHeadingNumber = null;
+			if (getHeadingNumber.length > 6) {
+				// tolerate with exceeding items in the heading number array
+				getHeadingNumber = getHeadingNumber.slice(0, 6);
+			} else if (getHeadingNumber.length < 6) {
+				// padding to length of 6.
+				// padding with 1 instead of 0, since we will minus 1 before formatting
+				getHeadingNumber = getHeadingNumber.concat(
+					new Array(6 - getHeadingNumber.length).fill(1)
+				)
+			}
+			if (cleanedContent) { // return the cleaned content
+				return cleanedContent;
+			}
+		}
+		else {
+			// set the headerNumber to default 1.1.1.1.1.1
+			getHeadingNumber = new Array(6).fill(1);
 		}
 	});
-
-
 
 	//
 	// MARK: - add the heading numbers
 	//
-
-	hook.doneEach( function() {
-
+	hook.doneEach(function () {
 		//
 		// 1. scope checking
 		//
-
 		// set the scope of the auto numbering
-		const contentScope	= document.querySelector( optionsScope );
+		const contentScope = document.querySelector(optionsScope);
 
-		// if scope doesnt exist
-		// and we are dubugging
-		if( !contentScope && optionsDebug ) {
-
-			// log the error
-			return console.error(
-				'ERROR: the "scope" entry is not valid'
-			);
-
+		// if scope doesn't exist and we are debugging
+		if (!contentScope && optionsDebug) {
+			return console.error('ERROR: the "scope" entry is not valid');
 		}
-
-
 
 		//
 		// 2. do we have the headers array
 		//
+		if (getHeadingNumber === null) {
+			if (optionsDebug) {
+				console.info('INFO: the "start" number is empty or null, skip numbering.');
+			}
+			return
+		}
 
-		if( getHeadingNumber === null ) {
+		// 3. validate the array is all numeric
+		if (getHeadingNumber.every(isNaN)) {
+			if (optionsDebug) {
+				console.error('ERROR: the values provided are not numeric');
+			}
+			return
+		}
 
-			// log the error
-			return optionsDebug ? console.error(
-				'ERROR: the "start" number is empty or null'
-			) : '';
+		// get the headings into array
+		const contentHeaders = contentScope.querySelectorAll(
+			'h1, h2, h3, h4, h5, h6');
 
-		} else {
+		// 4. check if the array items are positive numbers
+		const positiveNumber = (element) => (element >= 0);
+		if (!getHeadingNumber.every(positiveNumber)) {
+			if (optionsDebug) {
+				console.error('ERROR: the values are not positive integers')
+			}
+			return
+		}
 
-			// 2. validate the array is all numeric
-			if( getHeadingNumber.every( isNaN ) ) {
+		// 5. build the heading numbers
+		// generate the constants
+		// -- minus 1 since we add immediately in the loop
+		const startingNumbers = [
+			0,                       // null
+			getHeadingNumber[0] - 1, // h1
+			getHeadingNumber[1] - 1, // h2
+			getHeadingNumber[2] - 1, // h3
+			getHeadingNumber[3] - 1, // h4
+			getHeadingNumber[4] - 1, // h5
+			getHeadingNumber[5] - 1, // h6
+		];
 
-				// log the error
-				return optionsDebug ? console.error(
-					'ERROR: the values provided are not numeric'
-				) : '';
-
-			} else {
-
-				//
-				// validated constants
-				//
-
-				let validHeadingNumber	= '';
-
-				// get the headings into array
-				const contentHeaders = contentScope.querySelectorAll(
-					'h1, h2, h3, h4, h5, h6'
-				),
-
-				// check if the array items are positive numbers
-				positiveNumber = ( element ) => ( element >= 0 );
-
-				// 3. are the numbers all positive
-				if( getHeadingNumber.every( positiveNumber ) ) {
-
-					// 4. build the functionality
-
-
-					// generate the constants
-					// -- minus 1 since we add immediately in the loop
-					const startingNumbers = [
-						0,                       // null
-						getHeadingNumber[ 0 ] - 1, // h1
-						getHeadingNumber[ 1 ] - 1, // h2
-						getHeadingNumber[ 2 ] - 1, // h3
-						getHeadingNumber[ 3 ] - 1, // h4
-						getHeadingNumber[ 4 ] - 1, // h5
-						getHeadingNumber[ 5 ] - 1, // h6
-					];
-
-					// track the first run
-					let firstRun = [
-						true,	// null
-						true, 	// h1 run yet
-						true,	// h2 run yet
-						true,	// h3 run yet
-						true,	// h4 run yet
-						true,	// h5 run yet
-						true	// h6 run yet
-					];
-
-					// loop through all the elements inside scope
-					for( var contentItem in contentHeaders ) {
-
-
-						// this element from item number
-						var element = (
-							contentHeaders[ contentItem ]
-						),
-						numberText	= '';
-
-						// limit the heading tag number in search
-						const headingRegex = new RegExp(
-							`^H([${ optionsLevelRange }])$`
-						);
-
-						// does the element match a heading regex
-						// -- return to beginning of loop
-						if(
-							!element								||
-							!element.tagName						||
-							!element.tagName.match( headingRegex )
-						) {
-							continue;
-						}
-
-						// return the heading level number
-						var elementLevel = RegExp.$1;
-
-						// add `1` to the array numbers
-						startingNumbers[ elementLevel ]++;
-
-
-						// reset all level below except for the first run
-					    if( !firstRun[ elementLevel ] ) {
-
-							// callback
-							resetBelowLevels( elementLevel );
-
-						}
-
-						// set the first run to false
-						firstRun[ elementLevel ] = false;
-
-						// loop through the headings
-						for(
-							var levelNumber = 1;
-								levelNumber <= 6;
-								levelNumber++
-						) {
-
-							// if the loop number
-							// is less than the element number
-							// then generate the numbering text
-							if( levelNumber <= elementLevel ) {
-								numberText += startingNumbers[ levelNumber ] + optionsSeparator
-
-							} else {
-
-								// go back to top
-								continue;
-
-							}
-
-						}
-
-						// add the number outside the heading
-						// -- keep the anchor links :)
-						element.innerHTML =  numberText + ' ' + element.innerHTML.replace(/^[0-9\.\s]+/, '' );
-
-					}
-
-					// callback function
-					function resetBelowLevels( currentLevel ) {
-
-						// currentLevel is string
-						// convert it to number
-						for( let i = +currentLevel + 1; i <= 6; i++ ) {
-							startingNumbers[ i ] = 0;
-						}
-					}
-
-				} else {
-
-					// log the error
-					return optionsDebug ? console.error(
-						'ERROR: the values are not positive integers'
-					) : '';
-
-				}
+		function resetBelowLevels(currentLevel) {
+			// if currentLevel is string, convert it to number
+			// lower level head number set to `0`, so next we meet a lower level 
+			// head, it will be increment to `1`.
+			for (let i = +currentLevel + 1; i <= 6; i++) {
+				startingNumbers[i] = 0;
 			}
 		}
-	});
+
+		// track the first run
+		let firstRun = [
+			true,    // null
+			true,    // h1 run yet
+			true,    // h2 run yet
+			true,    // h3 run yet
+			true,    // h4 run yet
+			true,    // h5 run yet
+			true     // h6 run yet
+		];
+
+		// loop through all the elements inside scope
+		for (var contentItem in contentHeaders) {
+			// this element from item number
+			var element = (contentHeaders[contentItem]),
+				numberText = '';
+
+			// limit the heading tag number in search
+			const headingRegex = new RegExp(
+				`^H([${optionsLevelRange}])$`  // "^H([1-6])$"
+			);
+
+			// does the element match a heading regex
+			// -- return to beginning of loop
+			if (!element || !element.tagName) {
+				continue;
+			}
+			let match = element.tagName.match(headingRegex)
+			if (match === null || match[1] === '') { // not match
+				continue
+			}
+			// return the heading level number
+			let elementLevel = parseInt(match[1]);
+
+			// increment the heading level number by `1`
+			startingNumbers[elementLevel]++;
+
+			// reset all level below except for the first run
+			// only running on the given level range 
+			if (!firstRun[elementLevel] && (elementLevel >= optionsLevel.start)) {
+				resetBelowLevels(elementLevel);
+			}
+			// set the first run to false
+			firstRun[elementLevel] = false;
+
+			// loop through the headings
+			// only levels inside the configured range will be displayed in the header
+			for (let level = optionsLevel.start; level <= elementLevel; level++) {
+				numberText += startingNumbers[level] + optionsSeparator
+			}
+
+			// add the number outside the heading
+			// -- keep the anchor links :)
+			element.innerHTML = numberText + ' ' + element.innerHTML.replace(/^[0-9\.\s]+/, '');
+		}
+	}
+	);
 }
 
 
